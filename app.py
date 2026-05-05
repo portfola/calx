@@ -21,17 +21,9 @@ with tab1:
         principal = st.number_input("Initial Investment ($)", min_value=0, value=10000, step=500)
         annual_rate = st.slider("Annual Return Rate (%)", min_value=0.0, max_value=30.0, value=7.0, step=0.1)
         years = st.slider("Investment Period (Years)", min_value=1, max_value=50, value=20)
-        compounds_per_year = st.selectbox(
-            "Compounding Frequency",
-            options=[1, 4, 12, 365],
-            format_func=lambda x: {1: "Annually", 4: "Quarterly", 12: "Monthly", 365: "Daily"}[x],
-            index=2,
-        )
 
-    r = annual_rate / 100 / compounds_per_year
-    n_periods = years * compounds_per_year
     year_range = np.arange(0, years + 1)
-    balances = [principal * (1 + r) ** (compounds_per_year * y) for y in year_range]
+    balances = [principal * (1 + annual_rate / 100) ** y for y in year_range]
     final_value = balances[-1]
     total_gain = final_value - principal
 
