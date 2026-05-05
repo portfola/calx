@@ -6,6 +6,8 @@ import plotly.express as px
 
 st.set_page_config(page_title="Investment Calculator", page_icon="📈", layout="wide")
 
+st.markdown("<style>[data-testid='stDeployButton'] { display: none; }</style>", unsafe_allow_html=True)
+
 st.title("Investment Calculator")
 st.markdown("Plan and visualize your investment growth over time.")
 
@@ -18,7 +20,7 @@ with tab1:
     col1, col2 = st.columns([1, 2])
 
     with col1:
-        principal = st.number_input("Initial Investment ($)", min_value=0, value=10000, step=500)
+        principal = st.number_input("Initial Investment ($)", min_value=0, value=10000, step=500, format="%d")
         annual_rate = st.slider("Annual Return Rate (%)", min_value=0.0, max_value=30.0, value=7.0, step=0.1)
         years = st.slider("Investment Period (Years)", min_value=1, max_value=50, value=20)
         compounds_per_year = st.selectbox(
@@ -55,8 +57,8 @@ with tab2:
     col1, col2 = st.columns([1, 2])
 
     with col1:
-        sip_principal = st.number_input("Initial Investment ($)", min_value=0, value=5000, step=500, key="sip_principal")
-        monthly_contrib = st.number_input("Monthly Contribution ($)", min_value=0, value=500, step=50)
+        sip_principal = st.number_input("Initial Investment ($)", min_value=0, value=5000, step=500, key="sip_principal", format="%d")
+        monthly_contrib = st.number_input("Monthly Contribution ($)", min_value=0, value=500, step=50, format="%d")
         sip_rate = st.slider("Annual Return Rate (%)", min_value=0.0, max_value=30.0, value=8.0, step=0.1, key="sip_rate")
         sip_years = st.slider("Investment Period (Years)", min_value=1, max_value=50, value=25, key="sip_years")
 
@@ -101,8 +103,8 @@ with tab3:
     col1, col2 = st.columns([1, 2])
 
     with col1:
-        goal_amount = st.number_input("Target Amount ($)", min_value=1000, value=500000, step=10000)
-        goal_initial = st.number_input("Initial Investment ($)", min_value=0, value=10000, step=1000)
+        goal_amount = st.number_input("Target Amount ($)", min_value=1000, value=500000, step=10000, format="%d")
+        goal_initial = st.number_input("Initial Investment ($)", min_value=0, value=10000, step=1000, format="%d")
         goal_rate = st.slider("Expected Annual Return (%)", min_value=0.1, max_value=30.0, value=7.0, step=0.1, key="goal_rate")
         goal_years = st.slider("Time to Goal (Years)", min_value=1, max_value=50, value=20, key="goal_years")
 
@@ -152,11 +154,11 @@ with tab4:
     col1, col2 = st.columns([1, 2])
 
     with col1:
-        home_price = st.number_input("Home Price ($)", min_value=10000, value=400000, step=5000)
+        home_price = st.number_input("Home Price ($)", min_value=10000, value=400000, step=5000, format="%d")
         down_pct = st.slider("Down Payment (%)", min_value=0, max_value=50, value=20, step=1)
         mort_rate = st.slider("Annual Interest Rate (%)", min_value=0.1, max_value=15.0, value=6.75, step=0.05)
         mort_years = st.selectbox("Loan Term (Years)", options=[10, 15, 20, 25, 30], index=4)
-        extra_payment = st.number_input("Extra Monthly Principal ($)", min_value=0, value=0, step=50,
+        extra_payment = st.number_input("Extra Monthly Principal ($)", min_value=0, value=0, step=50, format="%d",
                                         help="Additional amount paid toward principal each month on the accelerated schedule")
 
     down_amount = home_price * down_pct / 100
