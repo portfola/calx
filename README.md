@@ -4,7 +4,7 @@ A Streamlit dashboard for planning investments and understanding mortgage costs.
 
 ## Features
 
-- **Compound Interest** — Calculate growth from a lump-sum investment with configurable compounding frequency (annual, quarterly, monthly, daily)
+- **Compound Interest** — Calculate growth from a lump-sum investment using annual returns (appropriate for market-traded funds where compounding is reflected in share price)
 - **SIP / Regular Contributions** — Model portfolio growth with recurring monthly contributions on top of an initial investment
 - **Goal Planner** — Work backwards from a target amount to find the required monthly contribution at a given return rate
 - **Mortgage Calculator** — Calculate monthly payments and total interest over the life of a loan; compare a standard repayment schedule against an accelerated one (extra principal per month) to see exactly how much interest and time you save by paying down principal faster

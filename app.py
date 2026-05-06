@@ -21,17 +21,9 @@ with tab1:
         principal = st.number_input("Initial Investment ($)", min_value=0, value=10000, step=500)
         annual_rate = st.slider("Annual Return Rate (%)", min_value=0.0, max_value=30.0, value=7.0, step=0.1)
         years = st.slider("Investment Period (Years)", min_value=1, max_value=50, value=20)
-        compounds_per_year = st.selectbox(
-            "Compounding Frequency",
-            options=[1, 4, 12, 365],
-            format_func=lambda x: {1: "Annually", 4: "Quarterly", 12: "Monthly", 365: "Daily"}[x],
-            index=2,
-        )
 
-    r = annual_rate / 100 / compounds_per_year
-    n_periods = years * compounds_per_year
     year_range = np.arange(0, years + 1)
-    balances = [principal * (1 + r) ** (compounds_per_year * y) for y in year_range]
+    balances = [principal * (1 + annual_rate / 100) ** y for y in year_range]
     final_value = balances[-1]
     total_gain = final_value - principal
 
@@ -40,7 +32,7 @@ with tab1:
         fig.add_trace(go.Scatter(x=year_range, y=balances, mode="lines", name="Balance", fill="tozeroy", line=dict(color="#2ecc71", width=2)))
         fig.add_trace(go.Scatter(x=year_range, y=[principal] * len(year_range), mode="lines", name="Principal", line=dict(color="#95a5a6", dash="dash")))
         fig.update_layout(title="Portfolio Growth", xaxis_title="Years", yaxis_title="Value ($)", yaxis_tickformat="$,.0f", hovermode="x unified")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
     m1, m2, m3 = st.columns(3)
     m1.metric("Final Value", f"${final_value:,.2f}")
@@ -84,7 +76,7 @@ with tab2:
         fig2.add_trace(go.Scatter(x=year_labels, y=balances_sip, name="Portfolio Value", fill="tozeroy", line=dict(color="#3498db", width=2)))
         fig2.add_trace(go.Scatter(x=year_labels, y=contributions, name="Total Contributed", line=dict(color="#e74c3c", dash="dash")))
         fig2.update_layout(title="Portfolio Growth with Contributions", xaxis_title="Years", yaxis_title="Value ($)", yaxis_tickformat="$,.0f", hovermode="x unified")
-        st.plotly_chart(fig2, use_container_width=True)
+        st.plotly_chart(fig2, width='stretch')
 
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("Final Value", f"${final_sip:,.2f}")
@@ -136,7 +128,7 @@ with tab3:
         fig3.add_vline(x=goal_rate, line_dash="dash", line_color="red", annotation_text=f"Your rate: {goal_rate}%")
         fig3.update_traces(line=dict(color="#9b59b6", width=2))
         fig3.update_layout(yaxis_tickformat="$,.0f")
-        st.plotly_chart(fig3, use_container_width=True)
+        st.plotly_chart(fig3, width='stretch')
 
     m1, m2, m3 = st.columns(3)
     m1.metric("Required Monthly Contribution", f"${max(required_monthly, 0):,.2f}")
@@ -221,7 +213,7 @@ with tab4:
             yaxis_tickformat="$,.0f",
             hovermode="x unified"
         )
-        st.plotly_chart(fig_m, use_container_width=True)
+        st.plotly_chart(fig_m, width='stretch')
 
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("Loan Amount", f"${loan_amount:,.0f}")
@@ -260,7 +252,7 @@ with tab4:
             yaxis_tickformat="$,.0f",
             hovermode="x unified"
         )
-        st.plotly_chart(fig_int, use_container_width=True)
+        st.plotly_chart(fig_int, width='stretch')
 
     with st.expander("Show amortization table (standard schedule, first 24 months)"):
         rows = []
@@ -273,4 +265,4 @@ with tab4:
                          "Principal": f"${principal_charge:,.2f}",
                          "Interest": f"${interest_charge:,.2f}",
                          "Balance": f"${bal:,.2f}"})
-        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(rows), width='stretch', hide_index=True)
