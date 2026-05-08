@@ -4,16 +4,16 @@ import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
 
-st.set_page_config(page_title="Investment Calculator", page_icon="📈", layout="wide")
+st.set_page_config(page_title="Calx: Add It Up", page_icon="📈", layout="wide")
 
 st.markdown("<style>[data-testid='stDeployButton'] { display: none; }</style>", unsafe_allow_html=True)
 
-st.title("Investment Calculator")
-st.markdown("Plan and visualize your investment growth over time.")
+st.title("Calx: Add It Up")
+st.markdown("Let's do the numbers.")
 
 CALC_TABS = [
     ("compound", "Compound Interest"),
-    ("sip", "SIP / Regular Contributions"),
+    ("recurring", "Recurring Investments"),
     ("goal", "Goal Planner"),
     ("mortgage", "Mortgage Calculator"),
 ]
@@ -37,78 +37,229 @@ selected_slug = _label_to_slug[selected_label]
 if st.query_params.get("calc") != selected_slug:
     st.query_params["calc"] = selected_slug
 
+
+def _qp_int(k, d, lo=None, hi=None):
+    try:
+        v = int(st.query_params.get(k, d))
+    except (TypeError, ValueError):
+        return d
+    if lo is not None: v = max(lo, v)
+    if hi is not None: v = min(hi, v)
+    return v
+
+def _qp_float(k, d, lo=None, hi=None):
+    try:
+        v = float(st.query_params.get(k, d))
+    except (TypeError, ValueError):
+        return d
+    if lo is not None: v = max(lo, v)
+    if hi is not None: v = min(hi, v)
+    return v
+
+def _qp_bool(k, d):
+    raw = st.query_params.get(k)
+    if raw is None: return d
+    return str(raw).lower() in ("1", "true", "yes", "on")
+
+_today = pd.Timestamp.today()
+SHARE_CAPTION = "Your inputs are saved in this page's URL — copy it from your browser's address bar to share or bookmark."
+
+
 # --- Tab 1: Compound Interest ---
 if selected_slug == "compound":
     st.header("Compound Interest Calculator")
 
+    _ci_defaults = {
+        "ci_principal":   _qp_int("cPrincipal", 10000, lo=0),
+        "ci_rate":        _qp_float("cRate", 7.0, lo=0.0, hi=30.0),
+        "ci_years":       _qp_int("cYears", 20, lo=1, hi=50),
+        "ci_start_month": _qp_int("cStartMonth", _today.month, lo=1, hi=12),
+        "ci_start_year":  _qp_int("cStartYear", _today.year, lo=1980, hi=2100),
+    }
+    for _k, _v in _ci_defaults.items():
+        st.session_state.setdefault(_k, _v)
+
     col1, col2 = st.columns([1, 2])
 
     with col1:
-        principal = st.number_input("Initial Investment ($)", min_value=0, value=10000, step=500, format="%d")
-        annual_rate = st.slider("Annual Return Rate (%)", min_value=0.0, max_value=30.0, value=7.0, step=0.1)
-        years = st.slider("Investment Period (Years)", min_value=1, max_value=50, value=20)
+        principal = st.number_input("Initial Investment ($)", min_value=0, step=500, format="%d", key="ci_principal")
+        annual_rate = st.slider("Annual Return Rate (%)", min_value=0.0, max_value=30.0, step=0.05, format="%.2f", key="ci_rate")
+        years = st.slider("Investment Period (Years)", min_value=1, max_value=50, key="ci_years")
+        sc1, sc2 = st.columns(2)
+        with sc1:
+            ci_start_month = st.selectbox(
+                "Start Month",
+                options=list(range(1, 13)),
+                format_func=lambda m: pd.Timestamp(2000, m, 1).strftime("%B"),
+                key="ci_start_month",
+            )
+        with sc2:
+            ci_start_year = st.number_input("Start Year", min_value=1980, max_value=2100, step=1, key="ci_start_year")
 
-    year_range = np.arange(0, years + 1)
+    start_date = pd.Timestamp(year=int(ci_start_year), month=int(ci_start_month), day=1)
+    year_range = list(range(0, years + 1))
     balances = [principal * (1 + annual_rate / 100) ** y for y in year_range]
+    year_dates = [start_date + pd.DateOffset(years=y) for y in year_range]
     final_value = balances[-1]
     total_gain = final_value - principal
 
     with col2:
         fig = go.Figure()
-        fig.add_trace(go.Scatter(x=year_range, y=balances, mode="lines", name="Balance", fill="tozeroy", line=dict(color="#2ecc71", width=2)))
-        fig.add_trace(go.Scatter(x=year_range, y=[principal] * len(year_range), mode="lines", name="Principal", line=dict(color="#95a5a6", dash="dash")))
-        fig.update_layout(title="Portfolio Growth", xaxis_title="Years", yaxis_title="Value ($)", yaxis_tickformat="$,.0f", hovermode="x unified")
+        fig.add_trace(go.Scatter(x=year_dates, y=balances, mode="lines", name="Balance", fill="tozeroy", line=dict(color="#2ecc71", width=2)))
+        fig.add_trace(go.Scatter(x=year_dates, y=[principal] * len(year_range), mode="lines", name="Principal", line=dict(color="#95a5a6", dash="dash")))
+        fig.update_layout(title="Portfolio Growth", xaxis_title="Year", yaxis_title="Value ($)",
+                          yaxis_tickformat="$,.0f", xaxis=dict(type="date", tickformat="%Y"),
+                          hovermode="x unified")
         st.plotly_chart(fig, width='stretch')
 
     m1, m2, m3 = st.columns(3)
     m1.metric("Final Value", f"${final_value:,.2f}")
     m2.metric("Total Gain", f"${total_gain:,.2f}")
-    m3.metric("Return", f"{(total_gain / principal * 100):.1f}%")
+    m3.metric("Return", f"{(total_gain / principal * 100):.1f}%" if principal > 0 else "—")
+
+    schedule_rows = []
+    for i, y in enumerate(year_range):
+        starting = balances[i - 1] if i > 0 else principal
+        ending = balances[i]
+        schedule_rows.append({
+            "Date": year_dates[i],
+            "Year": y,
+            "Starting Balance": starting,
+            "Interest Earned": ending - starting if i > 0 else 0.0,
+            "Ending Balance": ending,
+        })
+    with st.expander(f"Year-by-year schedule ({years} years)"):
+        st.dataframe(
+            pd.DataFrame(schedule_rows),
+            width='stretch', hide_index=True,
+            column_config={
+                "Date": st.column_config.DateColumn("Date", format="MMM YYYY"),
+                "Year": st.column_config.NumberColumn("Year", format="%d"),
+                "Starting Balance": st.column_config.NumberColumn("Starting Balance", format="$%.2f"),
+                "Interest Earned": st.column_config.NumberColumn("Interest Earned", format="$%.2f"),
+                "Ending Balance": st.column_config.NumberColumn("Ending Balance", format="$%.2f"),
+            },
+        )
+
+    st.query_params.update({
+        "calc": "compound",
+        "cPrincipal": str(int(principal)),
+        "cRate": f"{annual_rate:.2f}",
+        "cYears": str(int(years)),
+        "cStartMonth": str(int(ci_start_month)),
+        "cStartYear": str(int(ci_start_year)),
+    })
+    st.caption(SHARE_CAPTION)
 
 
-# --- Tab 2: SIP / Regular Contributions ---
-if selected_slug == "sip":
-    st.header("SIP / Regular Contribution Calculator")
+# --- Tab 2: Recurring Investments ---
+if selected_slug == "recurring":
+    st.header("Recurring Investments Calculator")
+    st.markdown("Project the growth of an account you contribute to every month.")
+
+    _r_defaults = {
+        "rc_principal":   _qp_int("rPrincipal", 5000, lo=0),
+        "rc_monthly":     _qp_int("rMonthly", 500, lo=0),
+        "rc_rate":        _qp_float("rRate", 8.0, lo=0.0, hi=30.0),
+        "rc_years":       _qp_int("rYears", 25, lo=1, hi=50),
+        "rc_start_month": _qp_int("rStartMonth", _today.month, lo=1, hi=12),
+        "rc_start_year":  _qp_int("rStartYear", _today.year, lo=1980, hi=2100),
+    }
+    for _k, _v in _r_defaults.items():
+        st.session_state.setdefault(_k, _v)
 
     col1, col2 = st.columns([1, 2])
 
     with col1:
-        sip_principal = st.number_input("Initial Investment ($)", min_value=0, value=5000, step=500, key="sip_principal", format="%d")
-        monthly_contrib = st.number_input("Monthly Contribution ($)", min_value=0, value=500, step=50, format="%d")
-        sip_rate = st.slider("Annual Return Rate (%)", min_value=0.0, max_value=30.0, value=8.0, step=0.1, key="sip_rate")
-        sip_years = st.slider("Investment Period (Years)", min_value=1, max_value=50, value=25, key="sip_years")
+        rc_principal = st.number_input("Initial Investment ($)", min_value=0, step=500, format="%d", key="rc_principal")
+        monthly_contrib = st.number_input("Monthly Contribution ($)", min_value=0, step=50, format="%d", key="rc_monthly")
+        rc_rate = st.slider("Annual Return Rate (%)", min_value=0.0, max_value=30.0, step=0.05, format="%.2f", key="rc_rate")
+        rc_years = st.slider("Investment Period (Years)", min_value=1, max_value=50, key="rc_years")
+        sc1, sc2 = st.columns(2)
+        with sc1:
+            rc_start_month = st.selectbox(
+                "Start Month",
+                options=list(range(1, 13)),
+                format_func=lambda m: pd.Timestamp(2000, m, 1).strftime("%B"),
+                key="rc_start_month",
+            )
+        with sc2:
+            rc_start_year = st.number_input("Start Year", min_value=1980, max_value=2100, step=1, key="rc_start_year")
 
-    monthly_rate = sip_rate / 100 / 12
-    months = sip_years * 12
-    balances_sip = []
-    contributions = []
-    balance = sip_principal
-    total_contributed = sip_principal
+    start_date = pd.Timestamp(year=int(rc_start_year), month=int(rc_start_month), day=1)
+    monthly_rate = rc_rate / 100 / 12
+    months = rc_years * 12
 
-    for m in range(months + 1):
-        if m > 0:
-            balance = balance * (1 + monthly_rate) + monthly_contrib
-            total_contributed += monthly_contrib
-        balances_sip.append(balance)
+    schedule_rows = [{
+        "Date": start_date, "Month": 0,
+        "Starting Balance": 0.0, "Contribution": float(rc_principal),
+        "Interest Earned": 0.0, "Ending Balance": float(rc_principal),
+    }]
+    balance = float(rc_principal)
+    total_contributed = float(rc_principal)
+    balances_rc = [balance]
+    contributions = [total_contributed]
+    month_dates = [start_date]
+    for m in range(1, months + 1):
+        starting = balance
+        interest = balance * monthly_rate
+        balance = balance + interest + monthly_contrib
+        total_contributed += monthly_contrib
+        balances_rc.append(balance)
         contributions.append(total_contributed)
+        month_dates.append(start_date + pd.DateOffset(months=m))
+        schedule_rows.append({
+            "Date": month_dates[-1], "Month": m,
+            "Starting Balance": starting, "Contribution": float(monthly_contrib),
+            "Interest Earned": interest, "Ending Balance": balance,
+        })
 
-    year_labels = [m / 12 for m in range(months + 1)]
-    final_sip = balances_sip[-1]
+    final_rc = balances_rc[-1]
     total_cont = contributions[-1]
-    sip_gain = final_sip - total_cont
+    rc_gain = final_rc - total_cont
 
     with col2:
         fig2 = go.Figure()
-        fig2.add_trace(go.Scatter(x=year_labels, y=balances_sip, name="Portfolio Value", fill="tozeroy", line=dict(color="#3498db", width=2)))
-        fig2.add_trace(go.Scatter(x=year_labels, y=contributions, name="Total Contributed", line=dict(color="#e74c3c", dash="dash")))
-        fig2.update_layout(title="Portfolio Growth with Contributions", xaxis_title="Years", yaxis_title="Value ($)", yaxis_tickformat="$,.0f", hovermode="x unified")
+        fig2.add_trace(go.Scatter(x=month_dates, y=balances_rc, name="Portfolio Value",
+                                  fill="tozeroy", line=dict(color="#3498db", width=2)))
+        fig2.add_trace(go.Scatter(x=month_dates, y=contributions, name="Total Contributed",
+                                  line=dict(color="#e74c3c", dash="dash")))
+        fig2.update_layout(title="Portfolio Growth with Contributions",
+                           xaxis_title="Year", yaxis_title="Value ($)",
+                           yaxis_tickformat="$,.0f", xaxis=dict(type="date", tickformat="%Y"),
+                           hovermode="x unified")
         st.plotly_chart(fig2, width='stretch')
 
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Final Value", f"${final_sip:,.2f}")
+    m1.metric("Final Value", f"${final_rc:,.2f}")
     m2.metric("Total Contributed", f"${total_cont:,.2f}")
-    m3.metric("Investment Gain", f"${sip_gain:,.2f}")
-    m4.metric("Return on Contributions", f"{(sip_gain / total_cont * 100):.1f}%")
+    m3.metric("Investment Gain", f"${rc_gain:,.2f}")
+    m4.metric("Return on Contributions", f"{(rc_gain / total_cont * 100):.1f}%" if total_cont > 0 else "—")
+
+    with st.expander(f"Month-by-month schedule ({months} months)"):
+        st.dataframe(
+            pd.DataFrame(schedule_rows),
+            width='stretch', hide_index=True,
+            column_config={
+                "Date": st.column_config.DateColumn("Date", format="MMM YYYY"),
+                "Month": st.column_config.NumberColumn("Month", format="%d"),
+                "Starting Balance": st.column_config.NumberColumn("Starting Balance", format="$%.2f"),
+                "Contribution": st.column_config.NumberColumn("Contribution", format="$%.2f"),
+                "Interest Earned": st.column_config.NumberColumn("Interest Earned", format="$%.2f"),
+                "Ending Balance": st.column_config.NumberColumn("Ending Balance", format="$%.2f"),
+            },
+        )
+
+    st.query_params.update({
+        "calc": "recurring",
+        "rPrincipal": str(int(rc_principal)),
+        "rMonthly": str(int(monthly_contrib)),
+        "rRate": f"{rc_rate:.2f}",
+        "rYears": str(int(rc_years)),
+        "rStartMonth": str(int(rc_start_month)),
+        "rStartYear": str(int(rc_start_year)),
+    })
+    st.caption(SHARE_CAPTION)
 
 
 # --- Tab 3: Goal Planner ---
@@ -116,13 +267,22 @@ if selected_slug == "goal":
     st.header("Goal Planner")
     st.markdown("Find out how much to invest monthly to reach a target.")
 
+    _g_defaults = {
+        "goal_amount":  _qp_int("gTarget", 500000, lo=1000),
+        "goal_initial": _qp_int("gInitial", 10000, lo=0),
+        "goal_rate":    _qp_float("gRate", 7.0, lo=0.1, hi=30.0),
+        "goal_years":   _qp_int("gYears", 20, lo=1, hi=50),
+    }
+    for _k, _v in _g_defaults.items():
+        st.session_state.setdefault(_k, _v)
+
     col1, col2 = st.columns([1, 2])
 
     with col1:
-        goal_amount = st.number_input("Target Amount ($)", min_value=1000, value=500000, step=10000, format="%d")
-        goal_initial = st.number_input("Initial Investment ($)", min_value=0, value=10000, step=1000, format="%d")
-        goal_rate = st.slider("Expected Annual Return (%)", min_value=0.1, max_value=30.0, value=7.0, step=0.1, key="goal_rate")
-        goal_years = st.slider("Time to Goal (Years)", min_value=1, max_value=50, value=20, key="goal_years")
+        goal_amount = st.number_input("Target Amount ($)", min_value=1000, step=10000, format="%d", key="goal_amount")
+        goal_initial = st.number_input("Initial Investment ($)", min_value=0, step=1000, format="%d", key="goal_initial")
+        goal_rate = st.slider("Expected Annual Return (%)", min_value=0.1, max_value=30.0, step=0.05, format="%.2f", key="goal_rate")
+        goal_years = st.slider("Time to Goal (Years)", min_value=1, max_value=50, key="goal_years")
 
     mr = goal_rate / 100 / 12
     n = goal_years * 12
@@ -151,7 +311,7 @@ if selected_slug == "goal":
                 monthly_needed.append(_rem / n)
 
         fig3 = px.line(x=rates, y=monthly_needed, labels={"x": "Annual Return Rate (%)", "y": "Required Monthly ($)"}, title="Monthly Contribution vs. Return Rate")
-        fig3.add_vline(x=goal_rate, line_dash="dash", line_color="red", annotation_text=f"Your rate: {goal_rate}%")
+        fig3.add_vline(x=goal_rate, line_dash="dash", line_color="red", annotation_text=f"Your rate: {goal_rate:.2f}%")
         fig3.update_traces(line=dict(color="#9b59b6", width=2))
         fig3.update_layout(yaxis_tickformat="$,.0f")
         st.plotly_chart(fig3, width='stretch')
@@ -161,37 +321,20 @@ if selected_slug == "goal":
     m2.metric("Growth from Initial Investment", f"${future_principal:,.2f}")
     m3.metric("Needed from Contributions", f"${max(remaining, 0):,.2f}")
 
+    st.query_params.update({
+        "calc": "goal",
+        "gTarget": str(int(goal_amount)),
+        "gInitial": str(int(goal_initial)),
+        "gRate": f"{goal_rate:.2f}",
+        "gYears": str(int(goal_years)),
+    })
+    st.caption(SHARE_CAPTION)
+
 
 # --- Tab 4: Mortgage Calculator ---
 if selected_slug == "mortgage":
     st.header("Mortgage Calculator")
     st.markdown("See how much interest you pay over the life of your loan — and how much you can save by paying extra principal each month.")
-
-    _qp = st.query_params
-    _today = pd.Timestamp.today()
-
-    def _qp_int(k, d, lo=None, hi=None):
-        try:
-            v = int(_qp.get(k, d))
-        except (TypeError, ValueError):
-            return d
-        if lo is not None: v = max(lo, v)
-        if hi is not None: v = min(hi, v)
-        return v
-
-    def _qp_float(k, d, lo=None, hi=None):
-        try:
-            v = float(_qp.get(k, d))
-        except (TypeError, ValueError):
-            return d
-        if lo is not None: v = max(lo, v)
-        if hi is not None: v = min(hi, v)
-        return v
-
-    def _qp_bool(k, d):
-        raw = _qp.get(k)
-        if raw is None: return d
-        return str(raw).lower() in ("1", "true", "yes", "on")
 
     _term_options = [10, 15, 20, 25, 30]
     _d_term = _qp_int("term", 30)
@@ -271,7 +414,7 @@ if selected_slug == "mortgage":
         "extraMonth": str(int(extra_start_month)),
         "extraYear": str(int(extra_start_year)),
     })
-    st.caption("Your inputs are saved in this page's URL — copy it from your browser's address bar to share or bookmark.")
+    st.caption(SHARE_CAPTION)
 
     down_amount = home_price * down_pct / 100
     loan_amount = home_price - down_amount
