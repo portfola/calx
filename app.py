@@ -138,10 +138,12 @@ with tab_savings:
                 x=month_dates, y=contributions, name="Total Contributed",
                 line=dict(color="#e74c3c", dash="dash"),
             ))
+        _sav_y_max = max(max(balances), max(contributions)) if max(balances) > 0 else 1
         fig.update_layout(
             title="Portfolio Growth",
             xaxis_title="Year", yaxis_title="Value ($)",
-            yaxis_tickformat="$,.0f", xaxis=dict(type="date", tickformat="%Y"),
+            yaxis=dict(tickformat="$,.0f", range=[0, _sav_y_max * 1.1]),
+            xaxis=dict(type="date", tickformat="%Y"),
             hovermode="x unified",
         )
         st.plotly_chart(fig, width='stretch')
