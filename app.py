@@ -36,6 +36,32 @@ def _qp_bool(k, d):
 _today = pd.Timestamp.today()
 SHARE_CAPTION = "Your inputs are saved in this page's URL — copy it from your browser's address bar to share or bookmark."
 
+
+def _money_tag(v):
+    """Compact a dollar amount for use in a filename: 477000 -> '477k', 1_250_000 -> '1.2M'."""
+    v = abs(float(v))
+    if v >= 1_000_000:
+        return f"{v / 1_000_000:.1f}".rstrip("0").rstrip(".") + "M"
+    if v >= 1_000:
+        return f"{round(v / 1_000)}k"
+    return f"{int(round(v))}"
+
+
+def _rate_tag(r):
+    """Format a rate without trailing zeros: 8.0 -> '8', 6.75 -> '6.75'."""
+    return f"{r:.2f}".rstrip("0").rstrip(".")
+
+
+def _dur_tag(months):
+    """Compact a span of months: 72 -> '6y', 78 -> '6y6m', 0 -> '0m'."""
+    y, m = divmod(int(months), 12)
+    return (f"{y}y" if y else "") + (f"{m}m" if m else "") or "0m"
+
+
+def _png_config(filename):
+    """st.plotly_chart config that names the modebar PNG download after its contents."""
+    return {"toImageButtonOptions": {"filename": filename, "format": "png"}}
+
 tab_savings, tab_debt = st.tabs(["Savings", "Debt"])
 
 
@@ -146,7 +172,8 @@ with tab_savings:
             xaxis=dict(type="date", tickformat="%Y"),
             hovermode="x unified",
         )
-        st.plotly_chart(fig, width='stretch')
+        _sav_fname = f"savings-{_money_tag(final_val)}-after-{int(sav_years)}y-at-{_rate_tag(sav_rate)}pct"
+        st.plotly_chart(fig, width='stretch', config=_png_config(_sav_fname))
 
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("Final Value", f"${final_val:,.2f}")
@@ -376,7 +403,17 @@ with tab_debt:
             yaxis_tickformat="$,.0f", xaxis=dict(type="date", tickformat="%Y"),
             hovermode="x unified",
         )
-        st.plotly_chart(fig_m, width='stretch')
+        if has_acceleration:
+            _bal_fname = (
+                f"loan-{_money_tag(loan_amount)}-payoff-{_dur_tag(months_saved)}-early"
+                f"-save-{_money_tag(interest_saved)}-interest"
+            )
+        else:
+            _bal_fname = (
+                f"loan-{_money_tag(loan_amount)}-{_rate_tag(debt_rate)}pct"
+                f"-{_money_tag(std_total_interest)}-interest-over-{int(debt_years)}y"
+            )
+        st.plotly_chart(fig_m, width='stretch', config=_png_config(_bal_fname))
 
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("Loan Amount", f"${loan_amount:,.0f}")
@@ -414,7 +451,8 @@ with tab_debt:
             yaxis_tickformat="$,.0f", xaxis=dict(type="date", tickformat="%Y"),
             hovermode="x unified",
         )
-        st.plotly_chart(fig_int, width='stretch')
+        _int_fname = f"interest-save-{_money_tag(interest_saved)}-payoff-{_dur_tag(months_saved)}-early"
+        st.plotly_chart(fig_int, width='stretch', config=_png_config(_int_fname))
 
     def _render_schedule(df, include_extra_column):
         display = df.iloc[1:].drop(columns=["Cumulative Interest"]).copy()
